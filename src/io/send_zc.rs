@@ -39,11 +39,11 @@ impl<T> Completable for SendZc<T> {
     type Output = BufResult<usize, T>;
 
     fn complete(self, cqe: CqeResult) -> Self::Output {
-        // Convert the operation result to `usize`
-        let res = cqe.result.map(|v| self.bytes + v as usize);
-        // Recover the buffer
-        let buf = self.buf;
-        (res, buf)
+        let bytes = self.bytes;
+        cqe.buf_result_with(self.buf, |v, buf| {
+            // Convert the operation result to `usize`
+            (bytes + v as usize, buf)
+        })
     }
 }
 

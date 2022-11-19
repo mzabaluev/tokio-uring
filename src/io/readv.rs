@@ -62,13 +62,11 @@ where
     type Output = BufResult<usize, Vec<T>>;
 
     fn complete(self, cqe: CqeResult) -> Self::Output {
-        // Convert the operation result to `usize`
-        let res = cqe.result.map(|v| v as usize);
-        // Recover the buffer
-        let mut bufs = self.bufs;
+        cqe.buf_result_with(self.bufs, |v, mut bufs| {
+            // Convert the operation result to `usize`
+            let n = v as usize;
 
-        // If the operation was successful, advance the initialized cursor.
-        if let Ok(n) = res {
+            // Advance the initialized cursor.
             let mut count = n;
             for b in bufs.iter_mut() {
                 let sz = std::cmp::min(count, b.bytes_total() - b.bytes_init());
@@ -82,8 +80,8 @@ where
                 }
             }
             assert_eq!(count, 0);
-        }
 
-        (res, bufs)
+            (n, bufs)
+        })
     }
 }

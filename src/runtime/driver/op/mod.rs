@@ -14,6 +14,7 @@ use slab_list::{SlabListEntry, SlabListIndices};
 use crate::runtime;
 use crate::runtime::CONTEXT;
 use crate::util::PhantomUnsendUnsync;
+use crate::{BufError, BufResult};
 
 /// A SlabList is used to hold unserved completions.
 ///
@@ -91,6 +92,18 @@ impl From<cqueue::Entry> for CqeResult {
             Err(io::Error::from_raw_os_error(-res))
         };
         CqeResult { result, flags }
+    }
+}
+
+impl CqeResult {
+    pub(crate) fn buf_result_with<T, B, F>(self, buf: B, f: F) -> BufResult<T, B>
+    where
+        F: FnOnce(u32, B) -> (T, B),
+    {
+        match self.result {
+            Ok(v) => Ok(f(v, buf)),
+            Err(e) => Err(BufError(e, buf)),
+        }
     }
 }
 

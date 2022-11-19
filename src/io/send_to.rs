@@ -60,11 +60,9 @@ impl<T> Completable for SendTo<T> {
     type Output = BufResult<usize, T>;
 
     fn complete(self, cqe: CqeResult) -> Self::Output {
-        // Convert the operation result to `usize`
-        let res = cqe.result.map(|v| v as usize);
-        // Recover the buffer
-        let buf = self.buf;
-
-        (res, buf)
+        cqe.buf_result_with(self.buf, |v, buf| {
+            // Convert the operation result to `usize`
+            (v as usize, buf)
+        })
     }
 }

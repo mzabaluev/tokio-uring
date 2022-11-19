@@ -5,6 +5,7 @@
 //! types that respect the `io-uring` contract.
 
 pub mod fixed;
+pub mod result;
 
 mod io_buf;
 pub use io_buf::IoBuf;

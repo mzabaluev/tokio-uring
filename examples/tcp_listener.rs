@@ -1,5 +1,6 @@
 use std::{env, net::SocketAddr};
 
+use tokio_uring::buf::result::ResultExt as _;
 use tokio_uring::net::TcpListener;
 
 fn main() {
@@ -29,7 +30,7 @@ fn main() {
 
                 let mut buf = vec![0u8; 4096];
                 loop {
-                    let (result, nbuf) = stream.read(buf).await;
+                    let (result, nbuf) = stream.read(buf).await.lift_buf();
                     buf = nbuf;
                     let read = result.unwrap();
                     if read == 0 {
@@ -37,7 +38,7 @@ fn main() {
                         break;
                     }
 
-                    let (res, slice) = stream.write_all(buf.slice(..read)).await;
+                    let (res, slice) = stream.write_all(buf.slice(..read)).await.lift_buf();
                     let _ = res.unwrap();
                     buf = slice.into_inner();
                     println!("{} all {} bytes ping-ponged", socket_addr, read);

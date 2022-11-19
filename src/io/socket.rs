@@ -1,8 +1,10 @@
 use crate::runtime::driver::op::Op;
 use crate::{
     buf::fixed::FixedBuf,
+    buf::result::ResultExt,
     buf::{BoundedBuf, BoundedBufMut, IoBuf, Slice},
     io::SharedFd,
+    BufError,
 };
 use std::{
     io,
@@ -56,24 +58,24 @@ impl Socket {
 
     pub async fn write_all<T: BoundedBuf>(&self, buf: T) -> crate::BufResult<(), T> {
         let orig_bounds = buf.bounds();
-        let (res, buf) = self.write_all_slice(buf.slice_full()).await;
-        (res, T::from_buf_bounds(buf, orig_bounds))
+        let res = self.write_all_slice(buf.slice_full()).await;
+        res.map_buf(|slice| T::from_buf_bounds(slice, orig_bounds))
     }
 
     async fn write_all_slice<T: IoBuf>(&self, mut buf: Slice<T>) -> crate::BufResult<(), T> {
         while buf.bytes_init() != 0 {
             let res = self.write(buf).await;
             match res {
-                (Ok(0), slice) => {
-                    return (
-                        Err(std::io::Error::new(
+                Ok((0, slice)) => {
+                    return Err(BufError(
+                        std::io::Error::new(
                             std::io::ErrorKind::WriteZero,
                             "failed to write whole buffer",
-                        )),
+                        ),
                         slice.into_inner(),
-                    )
+                    ))
                 }
-                (Ok(n), slice) => {
+                Ok((n, slice)) => {
                     buf = slice.slice(n..);
                 }
 
@@ -81,11 +83,11 @@ impl Socket {
                 // crate's design ensures we are not calling the 'wait' option
                 // in the ENTER syscall. Only an Enter with 'wait' can generate
                 // an EINTR according to the io_uring man pages.
-                (Err(e), slice) => return (Err(e), slice.into_inner()),
+                Err(BufError(e, slice)) => return Err(BufError(e, slice.into_inner())),
             }
         }
 
-        (Ok(()), buf.into_inner())
+        Ok(((), buf.into_inner()))
     }
 
     pub async fn writev<T: IoBuf>(&self, buf: Vec<T>) -> crate::BufResult<usize, Vec<T>> {

@@ -1,4 +1,5 @@
 use std::{env, net::SocketAddr};
+use tokio_uring::buf::result::ResultExt as _;
 use tokio_uring::net::UdpSocket;
 
 fn main() {
@@ -15,12 +16,13 @@ fn main() {
 
         let buf = vec![0u8; 128];
 
-        let (result, mut buf) = socket.recv_from(buf).await;
+        let (result, mut buf) = socket.recv_from(buf).await.lift_buf();
         let (read, socket_addr) = result.unwrap();
         buf.resize(read, 0);
         println!("received from {}: {:?}", socket_addr, &buf[..]);
 
-        let (result, _buf) = socket.send_to(buf, socket_addr).await;
-        println!("sent to {}: {}", socket_addr, result.unwrap());
+        let result = socket.send_to(buf, socket_addr).await;
+        let (sent, _) = result.unwrap();
+        println!("sent to {}: {}", socket_addr, sent);
     });
 }

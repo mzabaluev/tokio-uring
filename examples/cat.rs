@@ -29,8 +29,8 @@ fn main() {
 
         loop {
             // Read a chunk
-            let (res, b) = file.read_at(buf, pos).await;
-            let n = res.unwrap();
+            let res = file.read_at(buf, pos).await;
+            let (n, b) = res.unwrap();
 
             if n == 0 {
                 break;

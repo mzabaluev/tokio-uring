@@ -15,11 +15,12 @@ fn main() {
         let stream = UnixStream::connect(socket_addr).await.unwrap();
         let buf = vec![1u8; 128];
 
-        let (result, buf) = stream.write(buf).await;
-        println!("written: {}", result.unwrap());
+        let result = stream.write(buf).await;
+        let (written, buf) = result.unwrap();
+        println!("written: {}", written);
 
-        let (result, buf) = stream.read(buf).await;
-        let read = result.unwrap();
+        let result = stream.read(buf).await;
+        let (read, buf) = result.unwrap();
         println!("read: {:?}", &buf[..read]);
     });
 }

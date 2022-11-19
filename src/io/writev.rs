@@ -58,11 +58,9 @@ where
     type Output = BufResult<usize, Vec<T>>;
 
     fn complete(self, cqe: CqeResult) -> Self::Output {
-        // Convert the operation result to `usize`
-        let res = cqe.result.map(|v| v as usize);
-        // Recover the buffer
-        let buf = self.bufs;
-
-        (res, buf)
+        cqe.buf_result_with(self.bufs, |v, bufs| {
+            // Convert the operation result to `usize`
+            (v as usize, bufs)
+        })
     }
 }

@@ -57,14 +57,11 @@ where
     type Output = BufResult<(usize, SocketAddr), T>;
 
     fn complete(self, cqe: CqeResult) -> Self::Output {
-        // Convert the operation result to `usize`
-        let res = cqe.result.map(|v| v as usize);
-        // Recover the buffer
-        let mut buf = self.buf;
-
         let socket_addr = (*self.socket_addr).as_socket();
+        cqe.buf_result_with(self.buf, |v, mut buf| {
+            // Convert the operation result to `usize`
+            let n = v as usize;
 
-        let res = res.map(|n| {
             let socket_addr: SocketAddr = socket_addr.unwrap();
 
             // Safety: the kernel wrote `n` bytes to the buffer.
@@ -72,9 +69,7 @@ where
                 buf.set_init(n);
             }
 
-            (n, socket_addr)
-        });
-
-        (res, buf)
+            ((n, socket_addr), buf)
+        })
     }
 }
