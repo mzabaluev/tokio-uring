@@ -15,11 +15,11 @@
 //! [rfa]: crate::fs::File::read_fixed_at
 //! [wfa]: crate::fs::File::write_fixed_at
 
-mod handle;
-pub use handle::FixedBuf;
-
 mod buffers;
 pub(crate) use buffers::FixedBuffers;
+
+mod handle;
+pub use handle::FixedBuf;
 
 mod plumbing;
 
@@ -28,3 +28,5 @@ pub use pool::FixedBufPool;
 
 mod registry;
 pub use registry::FixedBufRegistry;
+
+pub mod sync;
