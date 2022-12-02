@@ -18,6 +18,7 @@ use std::io;
 use std::ops::Deref;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::{Rc, Weak};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use crate::buf::fixed::FixedBuffers;
@@ -63,6 +64,24 @@ impl Handle {
         self.inner.borrow_mut().unregister_buffers(buffers)
     }
 
+    pub(crate) fn register_buffers_sync(
+        &self,
+        buffers: Arc<Mutex<dyn FixedBuffers>>,
+    ) -> io::Result<()> {
+        self.inner.borrow_mut().register_buffers_sync(buffers)
+    }
+
+    pub(crate) fn unregister_buffers_sync(
+        &self,
+        buffers: Arc<Mutex<dyn FixedBuffers>>,
+    ) -> io::Result<()> {
+        self.inner.borrow_mut().unregister_buffers_sync(buffers)
+    }
+
+    /// Submit an operation to uring.
+    ///
+    /// `state` is stored during the operation tracking any state submitted to
+    /// the kernel.
     pub(crate) fn submit_op<T, S, F>(&self, data: T, f: F) -> io::Result<Op<T, S>>
     where
         T: Completable,

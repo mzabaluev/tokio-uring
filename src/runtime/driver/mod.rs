@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 pub(crate) use handle::*;
@@ -24,7 +25,7 @@ pub(crate) struct Driver {
     /// Reference to the currently registered buffers.
     /// Ensures that the buffers are not dropped until
     /// after the io-uring runtime has terminated.
-    fixed_buffers: Option<Rc<RefCell<dyn FixedBuffers>>>,
+    fixed_buffers: Option<BuffersRef>,
 }
 
 struct Ops {
@@ -34,6 +35,12 @@ struct Ops {
 
     /// Received but unserviced Op completions
     completions: Slab<op::Completion>,
+}
+
+// References to the currently registered buffers may come in two flavors.
+pub(super) enum BuffersRef {
+    ThreadLocal(Rc<RefCell<dyn FixedBuffers>>),
+    ThreadSafe(Arc<Mutex<dyn FixedBuffers>>),
 }
 
 impl Driver {
@@ -101,7 +108,7 @@ impl Driver {
             .submitter()
             .register_buffers(buffers.borrow().iovecs())?;
 
-        self.fixed_buffers = Some(buffers);
+        self.fixed_buffers = Some(BuffersRef::ThreadLocal(buffers));
         Ok(())
     }
 
@@ -109,8 +116,37 @@ impl Driver {
         &mut self,
         buffers: Rc<RefCell<dyn FixedBuffers>>,
     ) -> io::Result<()> {
-        if let Some(currently_registered) = &self.fixed_buffers {
+        if let Some(BuffersRef::ThreadLocal(currently_registered)) = &self.fixed_buffers {
             if Rc::ptr_eq(&buffers, currently_registered) {
+                self.uring.submitter().unregister_buffers()?;
+                self.fixed_buffers = None;
+                return Ok(());
+            }
+        }
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "fixed buffers are not currently registered",
+        ))
+    }
+
+    pub(crate) fn register_buffers_sync(
+        &mut self,
+        buffers: Arc<Mutex<dyn FixedBuffers>>,
+    ) -> io::Result<()> {
+        {
+            let b = buffers.lock().unwrap();
+            self.uring.submitter().register_buffers(b.iovecs())?;
+        }
+        self.fixed_buffers = Some(BuffersRef::ThreadSafe(buffers));
+        Ok(())
+    }
+
+    pub(crate) fn unregister_buffers_sync(
+        &mut self,
+        buffers: Arc<Mutex<dyn FixedBuffers>>,
+    ) -> io::Result<()> {
+        if let Some(BuffersRef::ThreadSafe(currently_registered)) = &self.fixed_buffers {
+            if Arc::ptr_eq(&buffers, currently_registered) {
                 self.uring.submitter().unregister_buffers()?;
                 self.fixed_buffers = None;
                 return Ok(());
