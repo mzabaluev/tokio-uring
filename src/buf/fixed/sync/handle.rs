@@ -6,6 +6,7 @@ use std::fmt::{self, Debug};
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// A thread-safe, unique handle to a memory buffer that can be pre-registered
 /// with the kernel for `io-uring` operations.
@@ -32,10 +33,19 @@ pub struct FixedBuf {
 
 impl Drop for FixedBuf {
     fn drop(&mut self) {
-        let Ok(mut registry) = self.registry.lock() else {
-            // If the mutex is poisoned, we silently let buffers remain checked out
-            // rather than risk aborting the program in an unwind.
-            return;
+        let mut registry = match self.registry.lock() {
+            Ok(r) => r,
+            Err(e) => {
+                // The mutex is poisoned, panic the thread if we can.
+                if thread::panicking() {
+                    // Let the buffer remain checked out rather than aborting.
+                    // The destructor of the FixedBuffers collection should
+                    // handle it later.
+                    return;
+                } else {
+                    panic!("failed to lock shared collection of fixed buffers: {}", e);
+                }
+            }
         };
         // Safety: the length of the initialized data in the buffer has been
         // maintained accordingly to the safety contracts on
