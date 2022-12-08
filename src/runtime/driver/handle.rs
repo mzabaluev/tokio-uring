@@ -66,14 +66,14 @@ impl Handle {
 
     pub(crate) fn register_buffers_sync(
         &self,
-        buffers: Arc<Mutex<dyn FixedBuffers>>,
+        buffers: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
     ) -> io::Result<()> {
         self.inner.borrow_mut().register_buffers_sync(buffers)
     }
 
     pub(crate) fn unregister_buffers_sync(
         &self,
-        buffers: Arc<Mutex<dyn FixedBuffers>>,
+        buffers: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
     ) -> io::Result<()> {
         self.inner.borrow_mut().unregister_buffers_sync(buffers)
     }

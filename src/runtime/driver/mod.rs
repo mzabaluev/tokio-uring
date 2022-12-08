@@ -40,7 +40,7 @@ struct Ops {
 // References to the currently registered buffers may come in two flavors.
 pub(super) enum BuffersRef {
     ThreadLocal(Rc<RefCell<dyn FixedBuffers>>),
-    ThreadSafe(Arc<Mutex<dyn FixedBuffers>>),
+    ThreadSafe(Arc<Mutex<dyn FixedBuffers + Send + Sync>>),
 }
 
 impl Driver {
@@ -131,7 +131,7 @@ impl Driver {
 
     pub(crate) fn register_buffers_sync(
         &mut self,
-        buffers: Arc<Mutex<dyn FixedBuffers>>,
+        buffers: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
     ) -> io::Result<()> {
         {
             let b = buffers.lock().unwrap();
@@ -143,7 +143,7 @@ impl Driver {
 
     pub(crate) fn unregister_buffers_sync(
         &mut self,
-        buffers: Arc<Mutex<dyn FixedBuffers>>,
+        buffers: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
     ) -> io::Result<()> {
         if let Some(BuffersRef::ThreadSafe(currently_registered)) = &self.fixed_buffers {
             if Arc::ptr_eq(&buffers, currently_registered) {

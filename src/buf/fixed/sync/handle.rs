@@ -26,7 +26,7 @@ use std::thread;
 /// [`FixedBufPool`]:     super::FixedBufPool
 ///
 pub struct FixedBuf {
-    registry: Arc<Mutex<dyn FixedBuffers>>,
+    registry: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
     buf: ManuallyDrop<Vec<u8>>,
     index: u16,
 }
@@ -62,7 +62,10 @@ impl FixedBuf {
     // - the array will not be deallocated until the buffer is checked in;
     // - the data in the array must be initialized up to the number of bytes
     //   given in init_len.
-    pub(super) unsafe fn new(registry: Arc<Mutex<dyn FixedBuffers>>, data: CheckedOutBuf) -> Self {
+    pub(super) unsafe fn new(
+        registry: Arc<Mutex<dyn FixedBuffers + Send + Sync>>,
+        data: CheckedOutBuf,
+    ) -> Self {
         let CheckedOutBuf {
             iovec,
             init_len,
