@@ -27,6 +27,10 @@ pub(crate) struct Pool {
     notify_next_by_cap: HashMap<usize, Arc<Notify>>,
 }
 
+// Safety: raw_bufs is managed equivalently to a Vec<u8>
+unsafe impl Send for Pool {}
+unsafe impl Sync for Pool {}
+
 // State information of a buffer in the registry,
 enum BufState {
     // The buffer is not in use.
@@ -173,7 +177,19 @@ impl Drop for Pool {
                     let v = unsafe { Vec::from_raw_parts(ptr, init_len, cap) };
                     mem::drop(v);
                 }
-                BufState::CheckedOut => unreachable!("all buffers must be checked in"),
+                BufState::CheckedOut => {
+                    // This can be reached when a thread-safe collection's
+                    // mutex has been poisoned and the Drop implementation for
+                    // sync::FixedBuf bailed out of modifying the potentially
+                    // inconsistent state.
+                    // At this point, no buffer or pool handles remain
+                    // to observe the buffers via safe public API,
+                    // and all io-urings where the buffers were registered
+                    // have been closed.
+                    // Panic this thread, or abort the program if we are already
+                    // in an unwind, as the last resort against leaking the buffer.
+                    panic!("all buffers must be checked in");
+                }
             }
         }
     }
